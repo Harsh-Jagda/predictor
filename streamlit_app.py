@@ -70,8 +70,8 @@ df = df.rename(columns=col_map)
 
 # Ensure numeric types
 for num_col in ["Rent", "Predicted_Rent", "Area_in_sqft", "Error", "Error_Percent", "Abs_Error", "Latitude", "Longitude"]:
-    if num_col in df.columns:
-        df[num_col] = pd.to_numeric(df[num_col], errors="coerce")
+valid_cols = [c for c in numeric_cols if c in df.columns]
+df[valid_cols] = df[valid_cols].apply(pd.to_numeric, errors="coerce")
 
 # Some fallback columns / formatting if missing
 if "Abs_Error" not in df.columns and "Error" in df.columns:
@@ -389,5 +389,6 @@ with tab_insights:
 # -----------------------
 st.sidebar.markdown("---")
 st.sidebar.download_button("Download filtered CSV", data=masked.to_csv(index=False).encode("utf-8"), file_name="filtered_listings.csv", mime="text/csv")
+
 
 
