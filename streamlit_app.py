@@ -16,33 +16,7 @@ st.set_page_config(layout="wide", page_title="Dubai Rent Insights (Plotly)")
 # Data loader (robust)
 # -----------------------
 @st.cache_data
-def load_data():
-    # Try a few common filenames (use whichever you exported)
-    candidates = [
-        "data/processed_listings.csv",
-        "data/processed_data.csv",
-        "data/dubai_rent_predictions_with_status.csv",
-        "data/rentals.csv",
-        "data/df_map.csv",
-        "data/processed_listings.csv"
-    ]
-    for f in candidates:
-        if os.path.exists(f):
-            df = pd.read_csv(f)
-            st.sidebar.info(f"Loaded data from: {f}")
-            return df
-    # If none found, try to read any single csv in data/
-    if os.path.exists("data"):
-        files = [p for p in os.listdir("data") if p.endswith(".csv")]
-        if files:
-            f = os.path.join("data", files[0])
-            df = pd.read_csv(f)
-            st.sidebar.info(f"Loaded data from: {f}")
-            return df
-    st.error("No CSV found in data/ directory. Upload your processed CSV (with predictions).")
-    return pd.DataFrame()
-
-df = load_data()
+df = pd.read_csv("dubai_rent_predictions_with_status.csv")
 if df.empty:
     st.stop()
 
@@ -411,3 +385,4 @@ with tab_insights:
 # -----------------------
 st.sidebar.markdown("---")
 st.sidebar.download_button("Download filtered CSV", data=masked.to_csv(index=False).encode("utf-8"), file_name="filtered_listings.csv", mime="text/csv")
+
