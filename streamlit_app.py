@@ -3,72 +3,87 @@ os.environ["STREAMLIT_SERVER_FILEWATCHER_TYPE"] = "none"  # Fix inotify issue
 
 import streamlit as st
 import pandas as pd
-import folium
-from folium.plugins import HeatMap, MarkerCluster
-from streamlit_folium import st_folium
+import plotly.express as px
+import numpy as np
 
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", page_title="Dubai Rental Insights")
 
-# Load CSV
+# --- Load CSV ---
 @st.cache_data
 def load_data():
-    return pd.read_csv("dubai_rent_predictions_with_status.csv")
+    df = pd.read_csv("df_map.csv")  # your CSV with all columns
+    # Ensure numeric columns are correct
+    numeric_cols = ["Rent", "Predicted_Rent", "Area_in_sqft", "Beds", "Baths", "Error", "Error_Percent"]
+    for col in numeric_cols:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    return df
 
-df = load_data()
+df_map = load_data()
 
-# Sidebar filters
+# --- Sidebar Filters ---
 st.sidebar.header("Filters")
-types = st.sidebar.multiselect("Property Type", df["Type"].unique())
-rent_range = st.sidebar.slider("Rent Range", int(df["Rent"].min()), int(df["Rent"].max()), (int(df["Rent"].min()), int(df["Rent"].max())))
-area_range = st.sidebar.slider("Area Size (sqft)", int(df["Area_in_sqft"].min()), int(df["Area_in_sqft"].max()), (int(df["Area_in_sqft"].min()), int(df["Area_in_sqft"].max())))
+property_types = st.sidebar.multiselect("Property Type", df_map["Type"].unique(), df_map["Type"].unique())
+rent_min, rent_max = st.sidebar.slider("Rent Range", int(df_map["Rent"].min()), int(df_map["Rent"].max()), (int(df_map["Rent"].min()), int(df_map["Rent"].max())))
+area_min, area_max = st.sidebar.slider("Area (sqft)", int(df_map["Area_in_sqft"].min()), int(df_map["Area_in_sqft"].max()), (int(df_map["Area_in_sqft"].min()), int(df_map["Area_in_sqft"].max())))
 
-filtered = df.copy()
-if types:
-    filtered = filtered[filtered["Type"].isin(types)]
-filtered = filtered[(filtered["Rent"] >= rent_range[0]) & (filtered["Rent"] <= rent_range[1])]
-filtered = filtered[(filtered["Area_in_sqft"] >= area_range[0]) & (filtered["Area_in_sqft"] <= area_range[1])]
+df_filtered = df_map[
+    (df_map["Type"].isin(property_types)) &
+    (df_map["Rent"] >= rent_min) & (df_map["Rent"] <= rent_max) &
+    (df_map["Area_in_sqft"] >= area_min) & (df_map["Area_in_sqft"] <= area_max)
+]
 
-# Tabs
-tab1, tab2, tab3 = st.tabs(["Map", "Plots", "Insights"])
+# --- Map ---
+st.header("Dubai Rental Map")
+if df_filtered.empty:
+    st.warning("No properties match the filters.")
+else:
+    fig_map = px.scatter_mapbox(
+        df_filtered,
+        lat="Latitude",
+        lon="Longitude",
+        color="Price_Status",
+        size="Abs_Error",
+        hover_data=["Address", "Type", "Area_in_sqft", "Rent", "Predicted_Rent", "Error", "Error_Percent"],
+        color_discrete_map={"Underpriced":"green","Overpriced":"red","Fair":"blue"},
+        zoom=10,
+        height=700
+    )
+    fig_map.update_layout(mapbox_style="open-street-map", margin=dict(l=0, r=0, t=0, b=0))
+    st.plotly_chart(fig_map, use_container_width=True)
 
-with tab1:
-    st.subheader("Rental Property Map")
-    # Create map
-    m = folium.Map(location=[filtered["Latitude"].mean(), filtered["Longitude"].mean()], zoom_start=11, tiles="CartoDB positron")
-    
-    # MarkerCluster
-    cluster = MarkerCluster().add_to(m)
+# --- Density Map / Heatmap for Errors ---
+st.subheader("Error Density Heatmap")
+fig_density = px.density_mapbox(
+    df_filtered,
+    lat='Latitude',
+    lon='Longitude',
+    z='Abs_Error',
+    radius=20,
+    center=dict(lat=25.276987, lon=55.296249),
+    zoom=10,
+    mapbox_style="open-street-map",
+    height=600
+)
+st.plotly_chart(fig_density, use_container_width=True)
 
-    # Add markers
-    for _, row in filtered.iterrows():
-        color = "green" if row["Price_Status"]=="Fair" else ("red" if row["Price_Status"]=="Overpriced" else "blue")
-        popup = f"{row['Address']}<br>Rent: {row['Rent']:,}<br>Predicted: {row['Predicted_Rent']:,}<br>Status: {row['Price_Status']}"
-        folium.CircleMarker([row["Latitude"], row["Longitude"]],
-                            radius=5, color=color, fill=True, fill_opacity=0.7,
-                            popup=popup).add_to(cluster)
-    
-    # Heatmap
-    HeatMap(filtered[['Latitude','Longitude','Abs_Error']].values.tolist(),
-            name="Error Heatmap", min_opacity=0.4, radius=12, blur=15).add_to(m)
+# --- Top/Bottom Properties ---
+st.header("Top Property Insights")
 
-    folium.LayerControl().add_to(m)
-    st_folium(m, width=1000, height=700)
+top_underpriced = df_filtered.nsmallest(15, "Error")[["Address","Type","Area_in_sqft","Rent","Predicted_Rent","Error","Price_Status"]]
+top_overpriced = df_filtered.nlargest(15, "Error")[["Address","Type","Area_in_sqft","Rent","Predicted_Rent","Error","Price_Status"]]
 
-with tab2:
-    st.subheader("Distributions")
-    import plotly.express as px
-    fig_rent = px.histogram(filtered, x="Rent", nbins=40, title="Rent Distribution")
-    fig_area = px.histogram(filtered, x="Area_in_sqft", nbins=40, title="Area Size Distribution")
-    st.plotly_chart(fig_rent, use_container_width=True)
-    st.plotly_chart(fig_area, use_container_width=True)
+col1, col2 = st.columns(2)
+with col1:
+    st.subheader("Top 15 Underpriced")
+    st.dataframe(top_underpriced.style.format({"Rent": "{:,.0f}", "Predicted_Rent":"{:,.0f}", "Error":"{:,.0f}", "Area_in_sqft":"{:,.0f}"}))
 
-with tab3:
-    st.subheader("Top Properties")
-    st.write("### Top 10 Underpriced")
-    st.dataframe(filtered.nsmallest(10,"Error")[["Address","Type","Rent","Predicted_Rent","Error","Price_Status"]].style.format({"Rent":"{:,}","Predicted_Rent":"{:,}","Error":"{:,}"}))
-    
-    st.write("### Top 10 Overpriced")
-    st.dataframe(filtered.nlargest(10,"Error")[["Address","Type","Rent","Predicted_Rent","Error","Price_Status"]].style.format({"Rent":"{:,}","Predicted_Rent":"{:,}","Error":"{:,}"}))
+with col2:
+    st.subheader("Top 15 Overpriced")
+    st.dataframe(top_overpriced.style.format({"Rent": "{:,.0f}", "Predicted_Rent":"{:,.0f}", "Error":"{:,.0f}", "Area_in_sqft":"{:,.0f}"}))
 
-
-
+# --- Metrics ---
+st.header("Summary Metrics")
+avg_error = df_filtered["Error"].mean()
+avg_error_pct = df_filtered["Error_Percent"].mean()
+st.metric("Average Absolute Error (AED)", f"{avg_error:,.0f}")
+st.metric("Average % Error", f"{avg_error_pct:.2f}%")
