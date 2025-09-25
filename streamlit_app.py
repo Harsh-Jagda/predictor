@@ -19,7 +19,6 @@ df = load_data()
 st.sidebar.header("Filters")
 city_filter = st.sidebar.multiselect("Select City", options=df["City"].unique(), default=df["City"].unique())
 status_filter = st.sidebar.multiselect("Select Price Status", options=df["Price_Status"].unique(), default=df["Price_Status"].unique())
-
 df_filtered = df[(df["City"].isin(city_filter)) & (df["Price_Status"].isin(status_filter))]
 
 # Tabs
@@ -27,17 +26,23 @@ tab1, tab2, tab3, tab4 = st.tabs(["🔥 Heatmap", "📋 Property Lookup", "📈 
 
 # --- HEATMAP TAB ---
 with tab1:
-    st.subheader("Price Status Heatmap")
+    st.subheader("Weighted Heatmap of Over/Underpricing")
+    
+    # Weight by absolute % error for intensity
+    df_filtered["Intensity"] = df_filtered["Abs_Error"]
 
+    # Aggregate by Geo_Cluster to reduce clutter
+    heat_data = df_filtered.groupby(["Geo_Cluster","Latitude","Longitude"], as_index=False).agg({"Intensity":"sum"})
+    
     fig_heat = px.density_mapbox(
-        df_filtered,
+        heat_data,
         lat="Latitude",
         lon="Longitude",
-        z=None,
-        radius=15,
-        hover_name="City",
-        hover_data=["Price_Status"],
-        color_continuous_scale="Viridis",
+        z="Intensity",
+        radius=20,
+        hover_name="Geo_Cluster",
+        hover_data={"Latitude":True,"Longitude":True,"Intensity":True},
+        color_continuous_scale="Turbo",
         mapbox_style="carto-positron",
         zoom=9,
         height=600
@@ -47,13 +52,10 @@ with tab1:
 # --- PROPERTY LOOKUP TAB ---
 with tab2:
     st.subheader("Search & Explore Properties")
-
     min_rent, max_rent = st.slider("Rent Range", int(df["Rent"].min()), int(df["Rent"].max()), (int(df["Rent"].min()), int(df["Rent"].max())))
     df_lookup = df_filtered[(df_filtered["Rent"] >= min_rent) & (df_filtered["Rent"] <= max_rent)]
-
     st.dataframe(
-        df_lookup[["Address","City","Type","Beds","Baths","Area_in_sqft","Rent","Predicted_Rent","Price_Status"]]
-        .sort_values(by="Rent", ascending=False),
+        df_lookup[["Address","City","Type","Beds","Baths","Area_in_sqft","Rent","Predicted_Rent","Price_Status"]],
         use_container_width=True
     )
 
@@ -61,7 +63,6 @@ with tab2:
 with tab3:
     st.subheader("Prediction Error Analysis")
 
-    st.write("**Distribution of Percentage Error**")
     fig_err = px.histogram(
         df_filtered,
         x="Error_Percent",
@@ -69,18 +70,19 @@ with tab3:
         nbins=50,
         color_discrete_map={"Fair":"green","Overpriced":"red","Underpriced":"blue"}
     )
-    fig_err.update_layout(bargap=0.05)
+    fig_err.update_layout(title="Distribution of % Error", bargap=0.05)
     st.plotly_chart(fig_err, use_container_width=True)
 
-    st.write("**Absolute Error vs Actual Rent**")
     fig_scatter = px.scatter(
         df_filtered,
         x="Rent",
-        y="Abs_Error",
+        y="Predicted_Rent",
         color="Price_Status",
-        hover_data=["Address","Predicted_Rent","City"],
-        color_discrete_map={"Fair":"green","Overpriced":"red","Underpriced":"blue"}
+        hover_data=["Address","City","Error_Percent"],
+        color_discrete_map={"Fair":"green","Overpriced":"red","Underpriced":"blue"},
+        trendline="ols"
     )
+    fig_scatter.update_layout(title="Actual vs Predicted Rent")
     st.plotly_chart(fig_scatter, use_container_width=True)
 
 # --- MARKET INSIGHTS TAB ---
@@ -89,17 +91,18 @@ with tab4:
 
     col1, col2 = st.columns(2)
 
+    # Pie chart of Over/Under/Fair
     with col1:
-        st.write("**Overpriced vs Underpriced Breakdown**")
         status_counts = df_filtered["Price_Status"].value_counts().reset_index()
         status_counts.columns = ["Price_Status","Count"]
         fig_pie = px.pie(status_counts, values="Count", names="Price_Status",
                          color="Price_Status",
-                         color_discrete_map={"Fair":"green","Overpriced":"red","Underpriced":"blue"})
+                         color_discrete_map={"Fair":"green","Overpriced":"red","Underpriced":"blue"},
+                         title="Overpriced vs Underpriced Breakdown")
         st.plotly_chart(fig_pie, use_container_width=True)
 
+    # Average Rent vs Predicted Rent by City
     with col2:
-        st.write("**Average Rent vs Predicted Rent by City**")
         city_stats = df_filtered.groupby("City").agg(
             Avg_Rent=("Rent","mean"),
             Avg_Predicted=("Predicted_Rent","mean")
@@ -108,14 +111,14 @@ with tab4:
             go.Bar(name="Actual Avg Rent", x=city_stats["City"], y=city_stats["Avg_Rent"]),
             go.Bar(name="Predicted Avg Rent", x=city_stats["City"], y=city_stats["Avg_Predicted"])
         ])
-        fig_city.update_layout(barmode="group", height=400)
+        fig_city.update_layout(barmode="group", height=400, title="Average Rent vs Predicted Rent by City")
         st.plotly_chart(fig_city, use_container_width=True)
 
-    st.write("**Detailed Breakdown Table**")
-    summary = df_filtered.groupby(["City","Price_Status"]).size().reset_index(name="Count")
-    total = df_filtered.groupby("City").size().reset_index(name="Total")
-    merged = summary.merge(total, on="City")
-    merged["Percent"] = (merged["Count"]/merged["Total"]*100).round(2)
-    st.dataframe(merged.pivot(index="City", columns="Price_Status", values="Percent").fillna(0))
+    # Top 10 Overpriced & Underpriced
+    st.write("### Top 10 Overpriced Properties")
+    top_over = df_filtered.nlargest(10, "Error")[["Address","City","Type","Rent","Predicted_Rent","Error","Price_Status"]]
+    st.dataframe(top_over, use_container_width=True)
 
-
+    st.write("### Top 10 Underpriced Properties")
+    top_under = df_filtered.nsmallest(10, "Error")[["Address","City","Type","Rent","Predicted_Rent","Error","Price_Status"]]
+    st.dataframe(top_under, use_container_width=True)
