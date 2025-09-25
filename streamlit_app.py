@@ -27,7 +27,7 @@ filtered_df = filtered_df[(filtered_df["Rent"] >= min_rent) & (filtered_df["Rent
 filtered_df = filtered_df[(filtered_df["Area_in_sqft"] >= min_area) & (filtered_df["Area_in_sqft"] <= max_area)]
 
 # --- Tabs ---
-tab1, tab2, tab3 = st.tabs(["📍 Map", "📊 Plots", "📈 Insights"])
+tab1, tab2, tab3 = st.tabs(["Map", "Plots", "Insights"])
 
 with tab1:
     st.subheader("Property Map")
@@ -109,3 +109,4 @@ with tab3:
     st.metric("Fair Deals", (filtered_df['Price_Status'] == "Fair").sum())
     st.metric("Overpriced", (filtered_df['Price_Status'] == "Overpriced").sum())
     st.metric("Underpriced", (filtered_df['Price_Status'] == "Underpriced").sum())
+
