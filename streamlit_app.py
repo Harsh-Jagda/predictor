@@ -69,7 +69,7 @@ for c in df.columns:
 df = df.rename(columns=col_map)
 
 # Ensure numeric types
-for num_col in ["Rent", "Predicted_Rent", "Area_in_sqft", "Error", "Error_Percent", "Abs_Error", "Latitude", "Longitude"]
+numeric_cols = ["Rent", "Predicted_Rent", "Area_in_sqft", "Error", "Error_Percent", "Abs_Error", "Latitude", "Longitude"]
 valid_cols = [c for c in numeric_cols if c in df.columns]
 df[valid_cols] = df[valid_cols].apply(pd.to_numeric, errors="coerce")
 
@@ -389,6 +389,7 @@ with tab_insights:
 # -----------------------
 st.sidebar.markdown("---")
 st.sidebar.download_button("Download filtered CSV", data=masked.to_csv(index=False).encode("utf-8"), file_name="filtered_listings.csv", mime="text/csv")
+
 
 
 
