@@ -11,7 +11,7 @@ from streamlit_folium import st_folium
 # ------------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("data/dubai_rent_predictions_with_status.csv")
+    df = pd.read_csv("dubai_rent_predictions_with_status.csv")
     return df
 
 df = load_data()
@@ -118,3 +118,4 @@ with tab3:
 
     st.markdown("**Top 10 Overpriced Properties**")
     st.dataframe(filtered.nlargest(10, "Error")[["Address", "Type", "Rent_fmt", "Predicted_Rent_fmt", "Error_fmt", "Price_Status"]])
+
