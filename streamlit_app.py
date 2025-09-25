@@ -16,7 +16,11 @@ st.set_page_config(layout="wide", page_title="Dubai Rent Insights (Plotly)")
 # Data loader (robust)
 # -----------------------
 @st.cache_data
-df = pd.read_csv("dubai_rent_predictions_with_status.csv")
+def load_data():
+    return pd.read_csv("dubai_rent_predictions_with_status.csv")
+
+df = load_data()
+
 if df.empty:
     st.stop()
 
@@ -385,4 +389,5 @@ with tab_insights:
 # -----------------------
 st.sidebar.markdown("---")
 st.sidebar.download_button("Download filtered CSV", data=masked.to_csv(index=False).encode("utf-8"), file_name="filtered_listings.csv", mime="text/csv")
+
 
