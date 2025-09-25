@@ -11,7 +11,7 @@ st.set_page_config(layout="wide", page_title="Dubai Rental Insights")
 # --- Load CSV ---
 @st.cache_data
 def load_data():
-    df = pd.read_csv("df_map.csv")  # your CSV with all columns
+    df = pd.read_csv("dubai_rent_predictions_with_status.csv")  # your CSV with all columns
     # Ensure numeric columns are correct
     numeric_cols = ["Rent", "Predicted_Rent", "Area_in_sqft", "Beds", "Baths", "Error", "Error_Percent"]
     for col in numeric_cols:
@@ -87,3 +87,4 @@ avg_error = df_filtered["Error"].mean()
 avg_error_pct = df_filtered["Error_Percent"].mean()
 st.metric("Average Absolute Error (AED)", f"{avg_error:,.0f}")
 st.metric("Average % Error", f"{avg_error_pct:.2f}%")
+
