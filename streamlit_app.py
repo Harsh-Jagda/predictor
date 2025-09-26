@@ -198,7 +198,7 @@ df_filtered = df[
 ].copy()
 
 st.title("🏙️ UAE Rent Prediction Analysis Dashboard")
-st.markdown("Comprehensive dashboard: predicted vs actual rents, over/under pricing hotspots, and feature-driven error analysis — designed for hiring managers and real-estate stakeholders.")
+st.markdown("Comprehensive dashboard: predicted vs actual rents, over/under pricing hotspots, and feature-driven error analysis.")
 
 
 # Top KPIs
@@ -449,5 +449,6 @@ with tabs[4]:
 
 st.markdown("---")
 st.caption("CSV used: dubai_rent_predictions_with_status.csv — Fields used: Rent, Predicted_Rent, Error, Error_Percent, Abs_Error, Over_Under, Price_Status, Rent_per_sqft, Area_in_sqft, Beds, Location, City, Latitude, Longitude, Geo_Cluster.")
+
 
 
