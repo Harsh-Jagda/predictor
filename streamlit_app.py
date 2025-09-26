@@ -89,17 +89,16 @@ def load_and_prepare(csv_path: str = "dubai_rent_predictions_with_status.csv"):
 
     # Error percent: detect format. If provided, use it; else compute
     if col_map["Error_Percent"]:
-        # unify to fractional (0.05 = 5%) for plotting
         ep = pd.to_numeric(df[col_map["Error_Percent"]], errors="coerce")
-        # if the values look like "5.2" (i.e. percent in percent points), convert to fraction
         if ep.abs().max(skipna=True) > 1.5:
             df["Error_Percent"] = ep / 100.0
         else:
             df["Error_Percent"] = ep.fillna(0.0)
     else:
-        # avoid division by zero
-        df["Error_Percent"] = df["Error"] / df["Rent"].replace({0: np.nan})
-        df["Error_Percent"] = df["Error_Percent"].fillna(0.0)
+        # Avoid division by zero
+        valid_rent = df["Rent"].replace({0: np.nan})
+        df["Error_Percent"] = df["Error"] / valid_rent
+        df["Error_Percent"] = df["Error_Percent"].replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
     # Price status
     if col_map["Price_Status"]:
@@ -207,7 +206,8 @@ st.markdown("Comprehensive dashboard: predicted vs actual rents, over/under pric
 st.header("Key metrics")
 mae = np.nanmean(np.abs(df_filtered["Predicted_Rent"] - df_filtered["Rent"]))
 # Error_Percent is fractional (0.05 == 5%)
-mape = np.nanmean(np.abs(df_filtered["Error_Percent"])) * 100
+valid_errs = df_filtered["Error_Percent"].replace([np.inf, -np.inf], np.nan).dropna()
+mape = np.mean(np.abs(valid_errs)) * 100
 overpriced_pct = 100.0 * (df_filtered["Price_Status"] == "Overpriced").sum() / max(1, len(df_filtered))
 underpriced_pct = 100.0 * (df_filtered["Price_Status"] == "Underpriced").sum() / max(1, len(df_filtered))
 col1, col2, col3, col4 = st.columns(4)
@@ -449,4 +449,5 @@ with tabs[4]:
 
 st.markdown("---")
 st.caption("CSV used: dubai_rent_predictions_with_status.csv — Fields used: Rent, Predicted_Rent, Error, Error_Percent, Abs_Error, Over_Under, Price_Status, Rent_per_sqft, Area_in_sqft, Beds, Location, City, Latitude, Longitude, Geo_Cluster.")
+
 
