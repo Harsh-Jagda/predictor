@@ -19,7 +19,7 @@ import plotly.graph_objects as go
 def load_data():
     df = pd.read_csv("dubai_rent_predictions_with_status.csv")
     # Ensure numeric columns are proper types
-    for col in ["Rent","Predicted_Rent","Error","Error_Percent","Abs_Error","Area_in_sqft","Rent_per_sqft"]:
+    for col in ["Rent","Predicted_Rent","Error","Error_Percent","Abs_Error","Area_in_sqft","Rent_per_sqft","Over_Under"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
@@ -42,44 +42,60 @@ df_filtered = df[
 # ------------------------------
 # Title
 # ------------------------------
-st.title("Dubai Real Estate Rent Insights")
-st.markdown("Interactive dashboard with heatmaps, statistics, and over/underpricing analysis.")
+st.title("UAE Real Estate Rent Insights")
+st.markdown("Interactive dashboard with geospatial analysis, predictive errors, and pricing insights.")
 
 # ------------------------------
 # Tabs
 # ------------------------------
-tabs = st.tabs(["Heatmaps","Distributions","Top Properties","Extra Insights"])
+tabs = st.tabs(["Geo Heatmaps","Error & Predictions","Distributions","Top Properties","Extra Insights"])
 
 # ------------------------------
-# Tab 1: Heatmaps
+# Tab 1: Geo Heatmaps
 # ------------------------------
 with tabs[0]:
-    st.subheader("Predicted Rent Heatmap")
-    # Clip predicted rent to 0-5M for better visualization
-    df_filtered["Predicted_Rent_Clip"] = df_filtered["Predicted_Rent"].clip(0, 5e6)
-    fig_heat_rent = px.density_mapbox(
-        df_filtered, lat="Latitude", lon="Longitude", z="Predicted_Rent_Clip",
+    st.subheader("Rent per Sqft Heatmap")
+    df_filtered["Rent_per_sqft_clip"] = df_filtered["Rent_per_sqft"].clip(0, 500)  # scale for better visualization
+    fig_rent_sqft = px.density_mapbox(
+        df_filtered, lat="Latitude", lon="Longitude", z="Rent_per_sqft_clip",
         radius=25, center=dict(lat=25.276987, lon=55.296249),
         zoom=10, mapbox_style="carto-positron",
-        color_continuous_scale="Viridis", hover_data=["Address","Type","Rent","Predicted_Rent","Error"]
+        color_continuous_scale="Viridis",
+        hover_data=["Address","Type","Rent","Rent_per_sqft"]
     )
-    st.plotly_chart(fig_heat_rent, use_container_width=True)
+    st.plotly_chart(fig_rent_sqft, use_container_width=True)
 
-    st.subheader("Over/Underpricing Heatmap")
-    # Diverging color scale
-    df_filtered["Over_Under_Clip"] = df_filtered["Over_Under"].clip(-5e6, 5e6)
-    fig_heat_ou = px.density_mapbox(
-        df_filtered, lat="Latitude", lon="Longitude", z="Over_Under_Clip",
+    st.subheader("Error % (Over/Underpricing) Heatmap")
+    df_filtered["Error_Percent_clip"] = df_filtered["Error_Percent"].clip(-100, 100)
+    fig_err_map = px.density_mapbox(
+        df_filtered, lat="Latitude", lon="Longitude", z="Error_Percent_clip",
         radius=25, center=dict(lat=25.276987, lon=55.296249),
         zoom=10, mapbox_style="carto-positron",
-        color_continuous_scale="RdBu_r", hover_data=["Address","Type","Rent","Predicted_Rent","Error","Price_Status"]
+        color_continuous_scale="RdBu_r",
+        hover_data=["Address","Type","Rent","Predicted_Rent","Error_Percent","Price_Status"]
     )
-    st.plotly_chart(fig_heat_ou, use_container_width=True)
+    st.plotly_chart(fig_err_map, use_container_width=True)
 
 # ------------------------------
-# Tab 2: Distributions
+# Tab 2: Error & Predictions
 # ------------------------------
 with tabs[1]:
+    st.subheader("Predicted vs Actual Rent Distribution")
+    fig_hist = go.Figure()
+    fig_hist.add_trace(go.Histogram(x=df_filtered["Rent"], name="Actual Rent", opacity=0.6))
+    fig_hist.add_trace(go.Histogram(x=df_filtered["Predicted_Rent"], name="Predicted Rent", opacity=0.6))
+    fig_hist.update_layout(barmode="overlay", xaxis_title="Rent (AED)", yaxis_title="Count", title="Actual vs Predicted Rent")
+    st.plotly_chart(fig_hist, use_container_width=True)
+
+    st.subheader("Over/Underpricing Boxplot by Type")
+    fig_box = px.box(df_filtered, x="Type", y="Error_Percent", color="Price_Status",
+                     points="all", hover_data=["Address","Rent","Predicted_Rent"])
+    st.plotly_chart(fig_box, use_container_width=True)
+
+# ------------------------------
+# Tab 3: Distributions
+# ------------------------------
+with tabs[2]:
     st.subheader("% Error Distribution by Property Type")
     fig_err = px.violin(df_filtered, y="Error_Percent", x="Type", color="Price_Status",
                         box=True, points="all", hover_data=["Address","Rent","Predicted_Rent"])
@@ -91,7 +107,8 @@ with tabs[1]:
                              hover_data=["Address","Type","Area_in_sqft","Error","Error_Percent"],
                              labels={"Rent":"Actual Rent","Predicted_Rent":"Predicted Rent"})
     # Add diagonal line
-    fig_scatter.add_shape(type="line", x0=0, y0=0, x1=df_filtered["Rent"].max(), y1=df_filtered["Rent"].max(),
+    fig_scatter.add_shape(type="line", x0=0, y0=0,
+                          x1=df_filtered["Rent"].max(), y1=df_filtered["Rent"].max(),
                           line=dict(color="Black", dash="dash"))
     st.plotly_chart(fig_scatter, use_container_width=True)
 
@@ -101,21 +118,21 @@ with tabs[1]:
     st.plotly_chart(fig_area, use_container_width=True)
 
 # ------------------------------
-# Tab 3: Top Properties
+# Tab 4: Top Properties
 # ------------------------------
-with tabs[2]:
-    st.subheader("Top 10 Underpriced Properties")
+with tabs[3]:
+    st.subheader("Top 10 Overpriced Properties")
     top_under = df_filtered.nsmallest(10, "Error")[["Address","Type","Area_in_sqft","Rent","Predicted_Rent","Error","Error_Percent","Price_Status"]]
     st.dataframe(top_under.style.applymap(lambda x: 'color: blue' if x=="Underpriced" else ''))
 
-    st.subheader("Top 10 Overpriced Properties")
+    st.subheader("Top 10 Underpriced Properties")
     top_over = df_filtered.nlargest(10, "Error")[["Address","Type","Area_in_sqft","Rent","Predicted_Rent","Error","Error_Percent","Price_Status"]]
     st.dataframe(top_over.style.applymap(lambda x: 'color: red' if x=="Overpriced" else ''))
 
 # ------------------------------
-# Tab 4: Extra Insights
+# Tab 5: Extra Insights
 # ------------------------------
-with tabs[3]:
+with tabs[4]:
     st.subheader("Average % Error per Geo Cluster")
     geo_err = df_filtered.groupby("Geo_Cluster")["Error_Percent"].mean().reset_index()
     fig_geo_err = px.bar(geo_err, x="Geo_Cluster", y="Error_Percent", color="Error_Percent",
@@ -128,7 +145,7 @@ with tabs[3]:
                             hover_data=["Type"])
     st.plotly_chart(fig_median, use_container_width=True)
 
-    st.subheader("Price Status Counts per City")
+    st.subheader("Price Status Counts per Emirate")
     city_status = df_filtered.groupby(["City","Price_Status"]).size().reset_index(name="Counts")
     fig_city = px.bar(city_status, x="City", y="Counts", color="Price_Status", barmode="stack")
     st.plotly_chart(fig_city, use_container_width=True)
@@ -138,4 +155,3 @@ with tabs[3]:
 # ------------------------------
 st.markdown("---")
 st.markdown("Made for portfolio demonstration: Dubai Real Estate Rent Analysis")
-
