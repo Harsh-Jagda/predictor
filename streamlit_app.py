@@ -9,107 +9,168 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
-# ===============================
+# ======================
 # Load Data
-# ===============================
+# ======================
 @st.cache_data
 def load_data():
     df = pd.read_csv("dubai_rent_predictions_with_status.csv")
-    df["error"] = df["Predicted Rent"] - df["Actual Rent"]
-    df["pct_error"] = df["error"] / df["Actual Rent"] * 100
-    df["Price per Sqft"] = df["Actual Rent"] / df["Size"]
     return df
 
 df = load_data()
 
-st.set_page_config(page_title="UAE Rent Analysis", layout="wide")
-st.title("UAE Rental Market Predictions Dashboard")
-
-# ===============================
-# Predicted vs Actual Scatter + Density
-# ===============================
-st.subheader("Predicted vs Actual Rent Distribution")
-fig_scatter = px.scatter(
-    df, x="Actual Rent", y="Predicted Rent", color="Status",
-    color_discrete_map={"Overpriced":"red","Underpriced":"green","Fair":"blue"},
-    hover_data=["Property Type","Bedrooms","Bathrooms","Location","Size"],
-    opacity=0.6
+# ======================
+# App Layout
+# ======================
+st.title("🏙️ UAE Rent Prediction Analysis Dashboard")
+st.markdown(
+    """
+    This dashboard provides insights into **rental predictions vs actual rents** across the UAE.
+    It highlights **prediction accuracy, over/underpricing trends, community-level insights, 
+    and feature correlations** to help both employers and real estate professionals.
+    """
 )
-fig_scatter.add_trace(go.Scatter(
-    x=[df["Actual Rent"].min(), df["Actual Rent"].max()],
-    y=[df["Actual Rent"].min(), df["Actual Rent"].max()],
-    mode="lines", name="Ideal Fit", line=dict(color="black", dash="dash")
-))
-fig_scatter.update_layout(xaxis_title="Actual Rent (AED)", yaxis_title="Predicted Rent (AED)")
+
+# ======================
+# Key Metrics
+# ======================
+st.header("📌 Key Stats")
+mae = np.mean(np.abs(df["predicted_rent"] - df["actual_rent"]))
+mape = np.mean(np.abs(df["%Error"])) * 100
+overpriced_pct = (df["status"] == "Overpriced").mean() * 100
+underpriced_pct = (df["status"] == "Underpriced").mean() * 100
+
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Mean Absolute Error", f"AED {mae:,.0f}")
+col2.metric("MAPE", f"{mape:.2f}%")
+col3.metric("Overpriced %", f"{overpriced_pct:.1f}%")
+col4.metric("Underpriced %", f"{underpriced_pct:.1f}%")
+
+# ======================
+# Predicted vs Actual Scatter
+# ======================
+st.header("🔍 Predicted vs Actual Rent")
+fig_scatter = px.scatter(
+    df,
+    x="actual_rent",
+    y="predicted_rent",
+    color="status",
+    opacity=0.6,
+    labels={"actual_rent": "Actual Rent (AED)", "predicted_rent": "Predicted Rent (AED)"},
+    title="Predicted vs Actual Rent with Ideal Fit Line"
+)
+fig_scatter.add_shape(
+    type="line", line=dict(dash="dash", color="black"),
+    x0=0, y0=df["actual_rent"].max(), y0=0, x1=df["actual_rent"].max(), y1=df["actual_rent"].max()
+)
+fig_scatter.update_xaxes(range=[0, 5_000_000])
+fig_scatter.update_yaxes(range=[0, 5_000_000])
 st.plotly_chart(fig_scatter, use_container_width=True)
 
-# ===============================
-# Boxplot of Prediction Error
-# ===============================
-st.subheader("Prediction Error by Property Type")
-fig_box = px.box(
-    df, x="Property Type", y="pct_error", color="Property Type",
-    title="Distribution of % Error Across Property Types"
+# ======================
+# Error Distribution
+# ======================
+st.header("📉 Distribution of Prediction Errors")
+fig_err = px.histogram(
+    df,
+    x="%Error",
+    nbins=100,
+    title="Distribution of % Error",
+    labels={"%Error": "Prediction Error (%)"},
+    color_discrete_sequence=["indianred"]
 )
-fig_box.update_yaxes(title="% Error (Predicted vs Actual)", zeroline=True)
+fig_err.update_xaxes(tickformat=".0%")
+st.plotly_chart(fig_err, use_container_width=True)
+
+# ======================
+# Boxplot of Error by Bedrooms
+# ======================
+st.header("🏠 Over/Underpricing by Bedrooms")
+fig_box = px.box(
+    df,
+    x="bedrooms",
+    y="%Error",
+    labels={"bedrooms": "Number of Bedrooms", "%Error": "Error %"},
+    title="Error Distribution by Bedrooms"
+)
+fig_box.update_yaxes(tickformat=".0%")
 st.plotly_chart(fig_box, use_container_width=True)
 
-# ===============================
-# Top 10 Over/Underpriced Properties
-# ===============================
-st.subheader("Top 10 Overpriced & Underpriced Properties")
-
-top_over = df.nlargest(10, "pct_error")[["Location","Property Type","Bedrooms","Actual Rent","Predicted Rent","pct_error"]]
-top_under = df.nsmallest(10, "pct_error")[["Location","Property Type","Bedrooms","Actual Rent","Predicted Rent","pct_error"]]
-
-col1, col2 = st.columns(2)
-with col1:
-    st.markdown("### 🔴 Overpriced")
-    st.dataframe(top_over)
-    fig_over = px.bar(top_over, x="pct_error", y="Location", orientation="h", color="pct_error", title="Top 10 Overpriced")
-    st.plotly_chart(fig_over, use_container_width=True)
-
-with col2:
-    st.markdown("### 🟢 Underpriced")
-    st.dataframe(top_under)
-    fig_under = px.bar(top_under, x="pct_error", y="Location", orientation="h", color="pct_error", title="Top 10 Underpriced")
-    st.plotly_chart(fig_under, use_container_width=True)
-
-# ===============================
-# Correlation Heatmap (Features vs Error)
-# ===============================
-st.subheader("Feature Correlation with Prediction Error")
-num_cols = df.select_dtypes(include=np.number).drop(columns=["error","pct_error"]).columns
-corr_matrix = df[num_cols.to_list() + ["pct_error"]].corr()
-fig_corr = px.imshow(
-    corr_matrix, text_auto=True, aspect="auto",
-    color_continuous_scale="RdBu_r", title="Correlation Heatmap"
+# ======================
+# Correlation Heatmap
+# ======================
+st.header("📊 Feature Correlation with Prediction Error")
+numeric_cols = df.select_dtypes(include=[np.number]).columns
+corr = df[numeric_cols].corr()["%Error"].sort_values(ascending=False)
+fig_corr = px.bar(
+    corr.reset_index(),
+    x="index", y="%Error",
+    title="Feature Correlation with Prediction Error",
+    labels={"index": "Feature", "%Error": "Correlation"}
 )
 st.plotly_chart(fig_corr, use_container_width=True)
 
-# ===============================
-# Geospatial Analysis
-# ===============================
-st.subheader("Geospatial Insights")
-
-# Choropleth: Avg Price per Sqft
-st.markdown("###Average Price per Sqft by Community")
-price_sqft = df.groupby("Location")["Price per Sqft"].mean().reset_index()
-fig_map_price = px.choropleth(
-    price_sqft, geojson="dubai_communities.geojson", locations="Location",
-    featureidkey="properties.name", color="Price per Sqft",
-    color_continuous_scale="Viridis", title="Avg Price per Sqft"
+# ======================
+# Choropleth: Avg Price per Sqft by Community
+# ======================
+st.header("🌍 Average Price per Sqft Across UAE Communities")
+avg_price = df.groupby("community")["Rent_per_sqft"].mean().reset_index()
+fig_choro_price = px.choropleth(
+    avg_price,
+    geojson="uae_geo.json",  # Replace with your UAE GeoJSON
+    featureidkey="properties.community",
+    locations="community",
+    color="Rent_per_sqft",
+    color_continuous_scale="Viridis",
+    title="Average Price per Sqft by Community (UAE)"
 )
-fig_map_price.update_geos(fitbounds="locations", visible=False)
-st.plotly_chart(fig_map_price, use_container_width=True)
+fig_choro_price.update_geos(fitbounds="locations", visible=False)
+st.plotly_chart(fig_choro_price, use_container_width=True)
 
-# Choropleth: Rent Volatility
-st.markdown("###Rent Volatility by Community")
-rent_vol = df.groupby("Location")["Actual Rent"].std().reset_index().rename(columns={"Actual Rent":"Rent Volatility"})
-fig_map_vol = px.choropleth(
-    rent_vol, geojson="dubai_communities.geojson", locations="Location",
-    featureidkey="properties.name", color="Rent Volatility",
-    color_continuous_scale="Reds", title="Rent Volatility (Std Dev)"
+# ======================
+# Choropleth: Rent Volatility by Community
+# ======================
+st.header("🌍 Rent Volatility Across UAE Communities")
+volatility = df.groupby("community")["actual_rent"].std().reset_index()
+fig_choro_vol = px.choropleth(
+    volatility,
+    geojson="uae_geo.json",
+    featureidkey="properties.community",
+    locations="community",
+    color="actual_rent",
+    color_continuous_scale="RdBu",
+    title="Standard Deviation of Rent (Volatility) by Community (UAE)"
 )
-fig_map_vol.update_geos(fitbounds="locations", visible=False)
-st.plotly_chart(fig_map_vol, use_container_width=True)
+fig_choro_vol.update_geos(fitbounds="locations", visible=False)
+st.plotly_chart(fig_choro_vol, use_container_width=True)
+
+# ======================
+# Top 10 Overpriced & Underpriced
+# ======================
+st.header("🏆 Top 10 Most Overpriced & Underpriced Properties")
+df["error_abs"] = df["predicted_rent"] - df["actual_rent"]
+
+over_top = df.nlargest(10, "error_abs")
+under_top = df.nsmallest(10, "error_abs")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    fig_over = px.bar(
+        over_top,
+        x="community", y="error_abs",
+        color="error_abs",
+        title="Top 10 Overpriced Properties",
+        labels={"error_abs": "Overpricing (AED)"}
+    )
+    st.plotly_chart(fig_over, use_container_width=True)
+
+with col2:
+    fig_under = px.bar(
+        under_top,
+        x="community", y="error_abs",
+        color="error_abs",
+        title="Top 10 Underpriced Properties",
+        labels={"error_abs": "Underpricing (AED)"}
+    )
+    st.plotly_chart(fig_under, use_container_width=True)
