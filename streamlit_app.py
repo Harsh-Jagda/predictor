@@ -172,9 +172,9 @@ if not Path(CSV).exists():
 
 df = load_and_prepare(CSV)
 
-# -------------------------
+
 # Sidebar filters (global)
-# -------------------------
+
 st.sidebar.header("Filters (global)")
 type_options = sorted(df["Type"].dropna().unique().tolist())
 sel_types = st.sidebar.multiselect("Property Type", options=type_options, default=type_options)
@@ -201,9 +201,9 @@ df_filtered = df[
 st.title("🏙️ UAE Rent Prediction Analysis Dashboard")
 st.markdown("Comprehensive dashboard: predicted vs actual rents, over/under pricing hotspots, and feature-driven error analysis — designed for hiring managers and real-estate stakeholders.")
 
-# -------------------------
+
 # Top KPIs
-# -------------------------
+
 st.header("Key metrics")
 mae = np.nanmean(np.abs(df_filtered["Predicted_Rent"] - df_filtered["Rent"]))
 # Error_Percent is fractional (0.05 == 5%)
@@ -216,14 +216,13 @@ col2.metric("MAPE", f"{mape:.2f}%")
 col3.metric("Overpriced", f"{overpriced_pct:.1f}%")
 col4.metric("Underpriced", f"{underpriced_pct:.1f}%")
 
-# -------------------------
+
 # Tabs layout
-# -------------------------
 tabs = st.tabs(["Heatmaps (geo)", "Predicted vs Actual", "Distributions & Boxplots", "Top 10 & Lookup", "Cluster / City Insights"])
 
-# -------------------------
+
 # Tab: Heatmaps (geospatial)
-# -------------------------
+
 with tabs[0]:
     st.subheader("Geo Heatmaps (UAE)")
 
@@ -259,9 +258,9 @@ with tabs[0]:
     )
     st.plotly_chart(fig2, use_container_width=True)
 
-# -------------------------
+
 # Tab: Predicted vs Actual (scatter & trendline)
-# -------------------------
+
 with tabs[1]:
     st.subheader("Predicted vs Actual Rent (scaled, UAE)")
     st.markdown("Scatter with an ideal-fit reference line (y=x). Use the trendline if statsmodels is installed.")
@@ -311,9 +310,8 @@ with tabs[1]:
     else:
         st.info("Trendline not shown — install `statsmodels` (add to requirements) to enable OLS trendline.")
 
-# -------------------------
+
 # Tab: Distributions & Boxplots
-# -------------------------
 with tabs[2]:
     st.subheader("Distributions & Error Breakdown")
 
@@ -361,9 +359,8 @@ with tabs[2]:
     )
     st.plotly_chart(fig_area, use_container_width=True)
 
-# -------------------------
+
 # Tab: Top 10 & Lookup
-# -------------------------
 with tabs[3]:
     st.subheader("Top properties & lookup")
 
@@ -401,9 +398,8 @@ with tabs[3]:
     lookup_display["Error_Percent"] = lookup_display["Error_Percent"].map(lambda x: f"{x*100:.2f}%" if pd.notnull(x) else "")
     st.dataframe(lookup_display, use_container_width=True)
 
-# -------------------------
+
 # Tab: Cluster / City Insights
-# -------------------------
 with tabs[4]:
     st.subheader("Cluster & City level insights")
 
@@ -450,8 +446,7 @@ with tabs[4]:
         agg_loc = df_filtered.groupby("Location").agg(avg_ppsqft=("Rent_per_sqft","mean"), count=("Rent","count")).reset_index().sort_values("avg_ppsqft", ascending=False)
         st.dataframe(agg_loc.head(30), use_container_width=True)
 
-# -------------------------
-# End
-# -------------------------
+
 st.markdown("---")
 st.caption("CSV used: dubai_rent_predictions_with_status.csv — Fields used: Rent, Predicted_Rent, Error, Error_Percent, Abs_Error, Over_Under, Price_Status, Rent_per_sqft, Area_in_sqft, Beds, Location, City, Latitude, Longitude, Geo_Cluster.")
+
