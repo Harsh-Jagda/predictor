@@ -1,3 +1,4 @@
+[Link to streamlit dashboard](https://predictor-l3bj8axnjvwy37btk8uo3x.streamlit.app/)
 # Rental Price Prediction and Error Analysis
 
 This repository is the culmination of an experiment that began with a simple question: how predictable are rental prices, really? At first glance, rents appear to be a straightforward reflection of area, location, and property type. Yet the deeper I dug, the clearer it became that rental markets are stubbornly complex, driven not only by measurable features but also by the noise of human decisions, timing, and market quirks. What follows is the story of how I tried to untangle this.
